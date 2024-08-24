@@ -1239,6 +1239,8 @@ antlrcpp::Any DaphneDSLBuiltins::build(mlir::Location loc, const std::string & f
     // Higher-order operations
     // ****************************************************************************
 
+    // TODO: will work here
+
     if(func == "map") {
         checkNumArgsExact(loc, func, numArgs, 2);
         mlir::Value source = args[0];
