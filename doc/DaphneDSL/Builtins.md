@@ -192,7 +192,7 @@ The built-in functions all follow the same scheme:
 | function | operator | meaning |
 | ----- | ----- | ----- |
 | | **`&&`** | logical conjunction |
-| | **`||`** | logical disjunction |
+| | **`\|\|`** | logical disjunction |
 
 ### Strings
 
