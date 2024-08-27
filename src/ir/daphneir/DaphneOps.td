@@ -1564,6 +1564,39 @@ def Daphne_MapOp : Daphne_Op<"map", [ShapeFromArg]> {
     let results = (outs MatrixOrU:$res);
 }
 
+// Updated operation definition for Daphne_MapOp to include target row/column index
+def Daphne_MapOp : Daphne_Op<"map", [ShapeFromArg]> {
+  let summary = "Applies a user-defined function to a specific row or column of a matrix. Returns a matrix if `isMatrix` is true, otherwise returns a scalar.";
+
+  // Arguments: 
+  // 1) matrix input of type MatrixOrU
+  // 2) function input of type SymbolNameAttr
+  // 3) boolean input of type BoolAttr for output type
+  // 4) boolean input of type BoolAttr for row/column operation
+  // 5) integer input of type IntegerAttr for the target row/column index
+  let arguments = (ins MatrixOrU:$input, SymbolNameAttr:$func, BoolAttr:$isMatrix, BoolAttr:$isRow, IntegerAttr:$index);
+
+  // Results: The type of the result is dynamic and depends on the boolean attribute
+  let results = (outs AnyType:$res);
+
+  let builders = [
+    OpBuilder<(ins "MatrixOrU":$input, "SymbolNameAttr":$func, "BoolAttr":$isMatrix, "BoolAttr":$isRow, "IntegerAttr":$index), [{
+      // Determine the result type based on the boolean attribute
+      let resultType = $isMatrix.getValue() ? $input.getType() : $_builder.getF64Type();
+
+      // Create the operation with the dynamically determined result type
+      $_builder.create<Daphne_MapOp>(
+        $_state.location,
+        resultType,   // Dynamic result type based on 'isMatrix'
+        $input,
+        $func,
+        $isMatrix,
+        $isRow,
+        $index
+      );
+    }]>
+  ];
+}
 
 // ****************************************************************************
 // Low-level auxiliary operations

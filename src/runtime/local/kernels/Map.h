@@ -79,22 +79,96 @@ struct Map<DenseMatrix<VTRes>, DenseMatrix<VTArg>> {
 // Matrix
 // ----------------------------------------------------------------------------
 
+// template<typename VTRes, typename VTArg>
+// struct Map<Matrix<VTRes>, Matrix<VTArg>> {
+//     static void apply(Matrix<VTRes> *& res, const Matrix<VTArg> * arg, void* func, DCTX(ctx)) {
+//         const size_t numRows = arg->getNumRows();
+//         const size_t numCols = arg->getNumCols();
+        
+//         if (res == nullptr)
+//             res = DataObjectFactory::create<DenseMatrix<VTRes>>(numRows, numCols, false);
+        
+//         auto udf = reinterpret_cast<VTRes(*)(VTArg)>(func);
+
+//         res->prepareAppend();
+//         for (size_t r = 0; r < numRows; ++r)
+//             for (size_t c = 0; c < numCols; ++c)
+//                 res->append(r, c, udf(arg->get(r, c)));
+//         res->finishAppend();
+//     }
+// };
+
+// #endif //SRC_RUNTIME_LOCAL_KERNELS_MAP_H
+
+
+
+// Updated Map implementation to support specific row/column application
 template<typename VTRes, typename VTArg>
-struct Map<Matrix<VTRes>, Matrix<VTArg>> {
-    static void apply(Matrix<VTRes> *& res, const Matrix<VTArg> * arg, void* func, DCTX(ctx)) {
+struct Map<DenseMatrix<VTRes>, DenseMatrix<VTArg>> {
+    static void apply(DenseMatrix<VTRes> *& res, const DenseMatrix<VTArg> * arg, void* func, bool isMatrix, bool isRow, int64_t index, DCTX(ctx)) {
         const size_t numRows = arg->getNumRows();
         const size_t numCols = arg->getNumCols();
-        
-        if (res == nullptr)
-            res = DataObjectFactory::create<DenseMatrix<VTRes>>(numRows, numCols, false);
-        
-        auto udf = reinterpret_cast<VTRes(*)(VTArg)>(func);
 
-        res->prepareAppend();
-        for (size_t r = 0; r < numRows; ++r)
-            for (size_t c = 0; c < numCols; ++c)
-                res->append(r, c, udf(arg->get(r, c)));
-        res->finishAppend();
+        if (isMatrix) {
+            if (res == nullptr)
+                res = DataObjectFactory::create<DenseMatrix<VTRes>>(numRows, numCols, false);
+
+            auto udf = reinterpret_cast<VTRes(*)(VTArg)>(func);
+
+            if (isRow) {
+                // Apply the UDF to the specific row
+                if (index < numRows) {
+                    VTRes * rowValuesRes = res->getValues() + index * res->getRowSkip();
+                    const VTArg * rowValuesArg = arg->getValues() + index * arg->getRowSkip();
+                    for (size_t c = 0; c < numCols; ++c)
+                        rowValuesRes[c] = udf(rowValuesArg[c]);
+                }
+                else {
+                    // Handle the error of invalid row index appropriately
+                }
+            } else {
+                // Apply the UDF to the specific column
+                if (index < numCols) {
+                    for (size_t r = 0; r < numRows; ++r) {
+                        VTRes * valuesRes = res->getValues() + r * res->getRowSkip() + index;
+                        const VTArg * valuesArg = arg->getValues() + r * arg->getRowSkip() + index;
+                        *valuesRes = udf(*valuesArg);
+                    }
+                }
+                else {
+                    // Handle the error of invalid column index appropriately
+                }
+            }
+        } else {
+            // Scalar case: Apply the function and sum up the results or reduce in some way.
+            auto udf = reinterpret_cast<VTRes(*)(VTArg)>(func);
+            VTRes scalarResult = VTRes(); // Assuming a default initialization
+
+            if (isRow) {
+                // Reduce over specific row
+                if (index < numRows) {
+                    for (size_t c = 0; c < numCols; ++c) {
+                        scalarResult += udf(arg->get(index, c));
+                    }
+                }
+                else {
+                    // Handle the error of invalid row index appropriately
+                }
+            } else {
+                // Reduce over specific column
+                if (index < numCols) {
+                    for (size_t r = 0; r < numRows; ++r) {
+                        scalarResult += udf(arg->get(r, index));
+                    }
+                }
+                else {
+                    // Handle the error of invalid column index appropriately
+                }
+            }
+
+            res = DataObjectFactory::create<DenseMatrix<VTRes>>(1, 1, false);
+            res->set(0, 0, scalarResult);
+        }
     }
 };
 

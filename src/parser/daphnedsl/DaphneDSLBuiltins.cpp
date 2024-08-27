@@ -1239,19 +1239,72 @@ antlrcpp::Any DaphneDSLBuiltins::build(mlir::Location loc, const std::string & f
     // Higher-order operations
     // ****************************************************************************
 
-    // TODO: will work here
+    // if(func == "map") {
+    //     checkNumArgsExact(loc, func, numArgs, 2);
+    //     mlir::Value source = args[0];
 
-    if(func == "map") {
-        checkNumArgsExact(loc, func, numArgs, 2);
-        mlir::Value source = args[0];
+    //     auto co = args[1].getDefiningOp<mlir::daphne::ConstantOp>();
+    //     mlir::Attribute attr = co.getValue();
 
-        auto co = args[1].getDefiningOp<mlir::daphne::ConstantOp>();
-        mlir::Attribute attr = co.getValue();
+    //     return static_cast<mlir::Value>(builder.create<MapOp>(
+    //         loc, source.getType(), source, attr.dyn_cast<mlir::StringAttr>()
+    //     ));
+    // }
 
-        return static_cast<mlir::Value>(builder.create<MapOp>(
-            loc, source.getType(), source, attr.dyn_cast<mlir::StringAttr>()
-        ));
+// Updated implementation for handling map operation with specific row/column index
+if (func == "map") {
+    // Ensure exactly five arguments are provided
+    checkNumArgsExact(loc, func, numArgs, 5);
+
+    // Extract the arguments
+    mlir::Value source = args[0];
+    mlir::Attribute funcAttr = args[1].getDefiningOp<mlir::daphne::ConstantOp>().getValue();
+    mlir::Attribute isMatrixAttr = args[2].getDefiningOp<mlir::daphne::ConstantOp>().getValue();
+    mlir::Attribute isRowAttr = args[3].getDefiningOp<mlir::daphne::ConstantOp>().getValue();
+    mlir::Attribute indexAttr = args[4].getDefiningOp<mlir::daphne::ConstantOp>().getValue();
+
+    // Convert the function attribute to a string
+    auto funcStrAttr = funcAttr.dyn_cast<mlir::StringAttr>();
+    if (!funcStrAttr) {
+        return mlir::failure(); // Handle the error appropriately
     }
+
+    // Convert the isMatrix attribute to a boolean
+    auto isMatrixBoolAttr = isMatrixAttr.dyn_cast<mlir::BoolAttr>();
+    if (!isMatrixBoolAttr) {
+        return mlir::failure(); // Handle the error appropriately
+    }
+
+    // Convert the isRow attribute to a boolean
+    auto isRowBoolAttr = isRowAttr.dyn_cast<mlir::BoolAttr>();
+    if (!isRowBoolAttr) {
+        return mlir::failure(); // Handle the error appropriately
+    }
+
+    // Convert the index attribute to an integer
+    auto indexIntAttr = indexAttr.dyn_cast<mlir::IntegerAttr>();
+    if (!indexIntAttr) {
+        return mlir::failure(); // Handle the error appropriately
+    }
+
+    bool isMatrix = isMatrixBoolAttr.getValue();
+    bool isRow = isRowBoolAttr.getValue();
+    int64_t index = indexIntAttr.getInt();
+
+    // Create the MapOp operation with the new index argument
+    mlir::Type resultType = isMatrix ? source.getType() : mlir::FloatType::get(builder.getContext(), 64);
+    return static_cast<mlir::Value>(builder.create<MapOp>(
+        loc, resultType, source, funcStrAttr, isMatrixBoolAttr, isRowBoolAttr, indexIntAttr
+    )); // if isMatrix is 0 return scalar, 1 return matrix
+}
+
+
+// In MLIR (Multi-Level Intermediate Representation), 
+// the parser is responsible for interpreting and converting textual
+// representations of operations (ops) into their corresponding MLIR operation objects. 
+// Essentially, it translates from a higher-level representation (text or source code) to a lower-level, 
+// executable form that MLIR can work with.
+
 
     // ****************************************************************************
     // List operations
